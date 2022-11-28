@@ -10,12 +10,11 @@ from gavo.helpers import anet
 
 
 class PAHeaderAdder(api.AnetHeaderProcessor):
-  indexPath = "/var/gavo/astrometry-indexes"
+  indexPath = os.path.join(api.getConfig("inputsDir"), 
+  	"fai_agn", "customindex")
   sp_total_timelimit = 120
-  sp_lower_pix = 2
-  sp_upper_pix = 4
-  sp_endob = 100
-  sp_indices = ["index*.fits"]
+  sp_endob = 200
+  sp_indices = ["index-agns*.fits"]
 
   sourceExtractorControl = """
     DETECT_MINAREA   20

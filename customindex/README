@@ -1,0 +1,12 @@
+We only have a few (dozen?) objects on the observation schedule here. On
+the other hand, the images are rather small.  So, to avoid having to use
+huge images, we build a custom index from Gaia DR3 and the known object
+centres.  These centres are read from a file that's not in version
+control because of priority concerns.
+
+To add more objects, add RA/Dec (decimal) to object.csv, make sure you
+have pyvo and astrometry.net installed and then run
+
+  python3 get-calibrators.py
+
+This will fetch calibrators from GAVO's Gaia DR3 lite table for now.
