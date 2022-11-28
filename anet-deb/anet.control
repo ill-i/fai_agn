@@ -1,0 +1,12 @@
+# source-extractor control file for astrometry.net
+CATALOG_TYPE     FITS_1.0
+# The output file name
+CATALOG_NAME     img.axy
+# The name of the file containing _ANET_SX_PARAM
+PARAMETERS_NAME  anet.param
+FILTER_NAME anet.filter
+
+    DETECT_MINAREA   20
+    DETECT_THRESH    3
+    SEEING_FWHM      1.2
+  

@@ -93,7 +93,8 @@
       <rowmaker>
 				<simplemaps>
 					exptime: EXPOSURE,
-					telescope: TELESCOP
+					telescope: TELESCOP,
+					observat: OBSERVAT
 				</simplemaps>
         <!-- put vars here to pre-process FITS keys that you need to
           re-format in non-trivial ways. -->
