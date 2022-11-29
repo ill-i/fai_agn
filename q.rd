@@ -43,29 +43,33 @@
 		<column name="objects" type="char(15)[]"
 			ucd="meta.id;src"
 			tablehead="Objs."
-			description="Names of objects"
+			description="Object name"
 			verbLevel="3"/>	
 		<column name="target_ra"
 			unit="deg" ucd="pos.eq.ra;meta.main"
 			tablehead="Target RA"
-			description="Right ascension of object from observation log."
+			description="Right ascension of an object."
 			verbLevel="1"/>
 		<column name="target_dec"
 			unit="deg" ucd="pos.eq.dec;meta.main"
 		  tablehead="Target Dec"
-			description="Declination of object from observation log."
+			description="Declination of an object."
 			verbLevel="1"/>
 		<column name="exptime"
 		  unit="s" ucd="time.duration;obs.exposure"
 		  tablehead="T.Exp"
-		  description="Exposure time from observation log."
+		  description="Exposure time."
 		  verbLevel="5"/>
 		<column name="telescope" type="text"
 		   ucd="instr.tel"
 		   tablehead="Telescope"
-		   description="Telescope from observation log."
+		   description="Telescope."
 		   verbLevel="3"/>
-
+		<column name="observat" type="text"
+		   ucd="instr.tel"
+		   tablehead="Observat"
+		   description="Observatory where data was obtained."
+		   verbLevel="3"/>
 	</table>
 
   <coverage>
@@ -101,7 +105,7 @@
         <apply procDef="//siap#setMeta">
           <!-- DaCHS can deal with some time formats; otherwise, you
             may want to use parseTimestamp(@DATE_OBS, '%Y %m %d...') -->
-          <bind key="dateObs">@DATE-OBS</bind>
+          <bind key="dateObs">@DATE_OBS</bind>
 
           <!-- bandpassId should be one of the keys from
             dachs adm dumpDF data/filters.txt;
@@ -113,9 +117,6 @@
             V unspecified visualisation for presentation only
           <bind key="pixflags"></bind> -->
           
-          <!-- titles are what users usually see in a selection, so
-            try to combine band, dateObs, object..., like
-            "MyData {} {} {}".format(@DATE_OBS, @TARGET, @FILTER) -->
           <bind key="title">"{} {} {}".format(@OBJECT, @DATE_OBS, @FILTER)</bind>
         </apply>
 
@@ -125,8 +126,8 @@
 
 				<map key="target_ra">hmsToDeg(@OBJCTRA, sepChar=" ")</map>
 				<map key="target_dec">dmsToDeg(@OBJCTDEC, sepChar=" ")</map>
-				<map key="observer" source="OBSERVER" nullExcs="KeyError"/>
-				<map key="objects">@mapped_names.split("|")</map>
+				<!-- <map key="observer" source="OBSERVER" nullExcs="KeyError"/>-->
+				<map key="objects">@OBJECT</map>
 
         <!-- any custom columns need to be mapped here; do *not* use
           idmaps="*" with SIAP -->
@@ -173,7 +174,7 @@
 	</service>
     <!-- other sia.types: Cutout, Mosaic, Atlas -->
 
-  <service id="web" allowed="form,siap.xml" core="imagecore">
+  <service id="i" allowed="form,siap.xml" core="imagecore">
     <meta name="shortName">fai_agn siap</meta>
 		<meta name="sia.type">Pointed</meta>
     

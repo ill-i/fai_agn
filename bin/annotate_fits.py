@@ -53,7 +53,7 @@ class PAHeaderAdder(api.AnetHeaderProcessor):
 
   def _mungeHeader(self, srcName, hdr):
     return fitstricks.makeHeaderFromTemplate(
-            fitstricks.WFPDB_TEMPLATE,
+            fitstricks.MINIMAL_IMAGE_TEMPLATE,
             originalHeader=hdr, 
             OBJTYP="AGN")
 
