@@ -40,9 +40,9 @@
       targetClass="'%simbad target class%'"
     >//obscore#publishSIAP</mixin> -->
 
-		<column name="objects" type="char(15)[]"
+		<column name="object" type="text"
 			ucd="meta.id;src"
-			tablehead="Objs."
+			tablehead="Obj."
 			description="Object name"
 			verbLevel="3"/>	
 		<column name="target_ra"
@@ -64,11 +64,6 @@
 		   ucd="instr.tel"
 		   tablehead="Telescope"
 		   description="Telescope."
-		   verbLevel="3"/>
-		<column name="observat" type="text"
-		   ucd="instr.tel"
-		   tablehead="Observat"
-		   description="Observatory where data was obtained."
 		   verbLevel="3"/>
 	</table>
 
@@ -97,8 +92,7 @@
       <rowmaker>
 				<simplemaps>
 					exptime: EXPOSURE,
-					telescope: TELESCOP,
-					observat: OBSERVAT
+					telescope: TELESCOP
 				</simplemaps>
         <!-- put vars here to pre-process FITS keys that you need to
           re-format in non-trivial ways. -->
@@ -126,8 +120,8 @@
 
 				<map key="target_ra">hmsToDeg(@OBJCTRA, sepChar=" ")</map>
 				<map key="target_dec">dmsToDeg(@OBJCTDEC, sepChar=" ")</map>
-				<!-- <map key="observer" source="OBSERVER" nullExcs="KeyError"/>-->
-				<map key="objects">@OBJECT</map>
+				<map key="object">@OBJECT</map>
+				<!--<map key="observat">@OBSERVAT</map>-->
 
         <!-- any custom columns need to be mapped here; do *not* use
           idmaps="*" with SIAP -->
@@ -139,22 +133,7 @@
     <condDesc original="//siap#protoInput"/>
 	  <condDesc original="//siap#humanInput"/>
 	  <condDesc buildFrom="dateObs"/>
-	  <condDesc>
-		  <inputKey name="object" type="text" multiplicity="multiple"
-				  tablehead="Target Object"
-				  description="Object being observed, Simbad-resolvable form"
-				  ucd="meta.name">
-					<values fromdb="unnest(objects) FROM fai50mak.main"/>
-			</inputKey>
-			<phraseMaker>
-				<setup imports="numpy"/>
-				<code><![CDATA[
-					yield "%({})s && objects".format(
-						base.getSQLKey("object",
-						numpy.array(inPars["object"]), outPars))
-				]]></code>
-			</phraseMaker>
-		</condDesc>
+	  <condDesc buildFrom="object"/>
 	</dbCore>
 
   <!-- if you want to build an attractive form-based service from
@@ -165,11 +144,7 @@
 		<meta name="title">Web interface to FAI AGN observations</meta>
 		<outputTable autoCols="accref,accsize,centerAlpha,centerDelta,
 		        dateObs,imageTitle">
-			<outputField original="objects">
-				<formatter>
-					return " - ".join(data)
-				</formatter>
-			</outputField>
+			<outputField original="object"/>
 		</outputTable>
 	</service>
     <!-- other sia.types: Cutout, Mosaic, Atlas -->

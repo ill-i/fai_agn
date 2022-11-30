@@ -48,8 +48,8 @@ class PAHeaderAdder(api.AnetHeaderProcessor):
     return True
 
   def _isProcessed(self, srcName):
-# TODO: make the thing actually sense whether a new-style header is present
-    return os.path.exists(srcName+".hdr")
+    hdr = self.getPrimaryHeader(srcName)
+    return "CD1_1" in hdr
 
   def _mungeHeader(self, srcName, hdr):
     return fitstricks.makeHeaderFromTemplate(
