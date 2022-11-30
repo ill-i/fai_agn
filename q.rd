@@ -65,6 +65,11 @@
 		   tablehead="Telescope"
 		   description="Telescope."
 		   verbLevel="3"/>
+    <column name="observat" type="text"
+      ucd="instr.tel"
+      tablehead="Observat"
+      description="Observatory where data was obtained."
+      verbLevel="3"/>
 	</table>
 
   <coverage>
@@ -92,7 +97,8 @@
       <rowmaker>
 				<simplemaps>
 					exptime: EXPOSURE,
-					telescope: TELESCOP
+					telescope: TELESCOP,
+					observat: OBSERVAT
 				</simplemaps>
         <!-- put vars here to pre-process FITS keys that you need to
           re-format in non-trivial ways. -->
@@ -121,7 +127,6 @@
 				<map key="target_ra">hmsToDeg(@OBJCTRA, sepChar=" ")</map>
 				<map key="target_dec">dmsToDeg(@OBJCTDEC, sepChar=" ")</map>
 				<map key="object">@OBJECT</map>
-				<!--<map key="observat">@OBSERVAT</map>-->
 
         <!-- any custom columns need to be mapped here; do *not* use
           idmaps="*" with SIAP -->
