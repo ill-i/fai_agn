@@ -9,7 +9,7 @@
     http://www.ivoa.net/rdf/uat
     if at all possible -->
   <meta name="subject">active-galactic-nuclei</meta>
-	<meta name="subject">active-galaxies</meta>
+  <meta name="subject">active-galaxies</meta>
 
   <meta name="creator">Fesenkov Astrophysical Institute</meta>
   <meta name="instrument">AZT-8</meta>
@@ -27,6 +27,11 @@
 
   <table id="main" onDisk="True" mixin="//siap#pgs" adql="True">
 
+    <meta name="_associatedDatalinkService">
+      <meta name="serviceId">dl</meta>
+      <meta name="idColumn">pub_did</meta>
+    </meta>
+
     <!-- in the following, just delete any attribute you don't want to
     set.
     
@@ -40,37 +45,42 @@
       targetClass="'%simbad target class%'"
     >//obscore#publishSIAP</mixin> -->
 
-		<column name="object" type="text"
-			ucd="meta.id;src"
-			tablehead="Obj."
-			description="Object name"
-			verbLevel="3"/>	
-		<column name="target_ra"
-			unit="deg" ucd="pos.eq.ra;meta.main"
-			tablehead="Target RA"
-			description="Right ascension of an object."
-			verbLevel="1"/>
-		<column name="target_dec"
-			unit="deg" ucd="pos.eq.dec;meta.main"
-		  tablehead="Target Dec"
-			description="Declination of an object."
-			verbLevel="1"/>
-		<column name="exptime"
-		  unit="s" ucd="time.duration;obs.exposure"
-		  tablehead="T.Exp"
-		  description="Exposure time."
-		  verbLevel="5"/>
-		<column name="telescope" type="text"
-		   ucd="instr.tel"
-		   tablehead="Telescope"
-		   description="Telescope."
-		   verbLevel="3"/>
+    <column name="object" type="text"
+      ucd="meta.id;src"
+      tablehead="Obj."
+      description="Object name"
+      verbLevel="3"/>  
+    <column name="target_ra"
+      unit="deg" ucd="pos.eq.ra;meta.main"
+      tablehead="Target RA"
+      description="Right ascension of an object."
+      verbLevel="1"/>
+    <column name="target_dec"
+      unit="deg" ucd="pos.eq.dec;meta.main"
+      tablehead="Target Dec"
+      description="Declination of an object."
+      verbLevel="1"/>
+    <column name="exptime"
+      unit="s" ucd="time.duration;obs.exposure"
+      tablehead="T.Exp"
+      description="Exposure time."
+      verbLevel="5"/>
+    <column name="telescope" type="text"
+       ucd="instr.tel"
+       tablehead="Telescope"
+       description="Telescope."
+       verbLevel="3"/>
     <column name="observat" type="text"
       ucd="instr.tel"
       tablehead="Observat"
       description="Observatory where data was obtained."
       verbLevel="3"/>
-	</table>
+    <column name="pub_did" type="text"
+      ucd="meta.ref.ivoid"
+      tablehead="pubDID"
+      description="publisherDID of this dataset"
+      verbLevel="4"/>
+  </table>
 
   <coverage>
     <updater sourceTable="main"/>
@@ -95,11 +105,10 @@
 
     <make table="main">
       <rowmaker>
-				<simplemaps>
-					exptime: EXPOSURE,
-					telescope: TELESCOP,
-					observat: OBSERVAT
-				</simplemaps>
+        <simplemaps>
+          exptime: EXPOSURE,
+          telescope: TELESCOP,
+        </simplemaps>
         <!-- put vars here to pre-process FITS keys that you need to
           re-format in non-trivial ways. -->
         <apply procDef="//siap#setMeta">
@@ -124,9 +133,11 @@
 
         <apply procDef="//siap#computePGS"/>
 
-				<map key="target_ra">hmsToDeg(@OBJCTRA, sepChar=" ")</map>
-				<map key="target_dec">dmsToDeg(@OBJCTDEC, sepChar=" ")</map>
-				<map key="object">@OBJECT</map>
+        <map key="target_ra">hmsToDeg(@OBJCTRA, sepChar=" ")</map>
+        <map key="target_dec">dmsToDeg(@OBJCTDEC, sepChar=" ")</map>
+        <map key="object">@OBJECT</map>
+        <map key="observat">vars.get("OBSERVAT")</map>
+        <map key="pub_did">\standardPubDID</map>
 
         <!-- any custom columns need to be mapped here; do *not* use
           idmaps="*" with SIAP -->
@@ -134,29 +145,118 @@
     </make>
   </data>
 
-	<dbCore queriedTable="main" id="imagecore">
+
+  <service id="dl" allowed="dlmeta,static">
+    <meta name="title">FAI AGN raw image datalink</meta>
+    <property key="staticData">calib_frames</property>
+
+    <datalinkCore>
+      <descriptorGenerator procDef="//soda#fromStandardPubDID"/>
+
+      <metaMaker semantics="#flat">
+        <setup imports="gavo.utils.fitstools, glob">
+          <par name="bandMapping">{
+            "B_Johnson": "u",
+            "R_Johnson": "r",
+            "V_Johnson": "g",
+          }</par>
+        </setup>
+        <code>
+          # common setup for all meta makes
+          with open(os.path.join(
+              base.getConfig("inputsDir"),
+              descriptor.accessPath), "rb") as f:
+            descriptor.fits_header = fitstools.readPrimaryHeaderQuick(f)
+          descriptor.calib_path = os.path.join(
+            self.parent.rd.resdir, "calib_frames")
+
+          # make the #flat link
+          band = bandMapping[descriptor.fits_header["FILTER"]]
+          flatPat = f"FLAT*_{band}.fit"
+            
+          for match in glob.glob(os.path.join(descriptor.calib_path, flatPat)):
+            yield descriptor.makeLinkFromFile(
+              match,
+              description="Flatfile for this band")
+        </code>
+      </metaMaker>
+
+      <metaMaker semantics="#bias">
+        <setup imports="datetime">
+          <!-- The following list gives file name for intervals between
+            the date in the first tuple element and the date in the 
+            following record. The most recent time is valid for
+            everyting later. -->
+          <par name="dateRanges">[
+            (datetime.datetime(2012, 12, 14), "_150920-0001"),
+            (datetime.datetime(2013, 1, 23), "_150920-0002"),
+            (datetime.datetime(2014, 10, 3), "_150920-0003"),
+          ]</par>
+          <code><![CDATA[
+            def getFragmentForDate(date):
+              """returns the appropriate ordinal for date (a datetime.date
+              instance.
+
+              This will raise a ValueError if a date before dateRanges is
+              entered.
+              """
+              curStart = None
+              for nextStart, nextFragment in dateRanges:
+                if curStart:
+                  if curStart<=date<nextStart:
+                    return curFragment
+                curStart, curFragment = nextStart, nextFragment
+
+              if date>curStart:
+                return curFragment
+
+              raise ValueError(
+                f"Observation date without calibration data: {date}")
+          ]]></code>
+        </setup>
+        <code>
+          dateObs = parseTimestamp(descriptor.fits_header["DATE-OBS"])
+          fragment = getFragmentForDate(dateObs)
+            
+          yield descriptor.makeLinkFromFile(
+            os.path.join(descriptor.calib_path, f"BIAS{fragment}_60s.fit"),
+            description="Bias frame for this observation date")
+        </code>
+      </metaMaker>
+
+    </datalinkCore>
+
+  </service>
+
+
+  <dbCore queriedTable="main" id="imagecore">
     <condDesc original="//siap#protoInput"/>
-	  <condDesc original="//siap#humanInput"/>
-	  <condDesc buildFrom="dateObs"/>
-	  <condDesc buildFrom="object"/>
-	</dbCore>
+    <condDesc original="//siap#humanInput"/>
+    <condDesc buildFrom="dateObs"/>
+    <condDesc buildFrom="object"/>
+  </dbCore>
 
   <!-- if you want to build an attractive form-based service from
     SIAP, you probably want to have a custom form service; for
     just basic functionality, this should do, however. -->
   <service id="web" allowed="form" core="imagecore">
-    <meta name="shortName">fai_agn siap</meta>
-		<meta name="title">Web interface to FAI AGN observations</meta>
-		<outputTable autoCols="accref,accsize,centerAlpha,centerDelta,
-		        dateObs,imageTitle">
-			<outputField original="object"/>
-		</outputTable>
-	</service>
+    <meta name="shortName">fai_agn web</meta>
+    <meta name="title">Web interface to FAI AGN observations</meta>
+    <outputTable autoCols="accref,accsize,centerAlpha,centerDelta,
+            dateObs,imageTitle,object">
+      <outputField original="pub_did" tablehead="Datalink">
+        <formatter>
+          return T.a(href="/\rdId/dl/dlmeta?ID="+urllib.parse.quote(data
+            ))["Datalink"]
+        </formatter>
+      </outputField>
+    </outputTable>
+  </service>
     <!-- other sia.types: Cutout, Mosaic, Atlas -->
 
   <service id="i" allowed="form,siap.xml" core="imagecore">
     <meta name="shortName">fai_agn siap</meta>
-		<meta name="sia.type">Pointed</meta>
+    <meta name="sia.type">Pointed</meta>
     
     <meta name="testQuery.pos.ra">345.8</meta>
     <meta name="testQuery.pos.dec">8.9</meta>
@@ -177,13 +277,13 @@
         >i/siap.xml</url>
       <code>
         rows = self.getVOTableRows()
-				self.assertEqual(len(rows), 1)
-				row = rows[0]
-				self.assertEqual(row["objects"][0].strip(), "NGC7469")
-				self.assertEqual(len(row["objects"]), 1)
-				self.assertEqual(row["imageTitle"],
-								'NGC7469-007_R.fit.fit')
-			</code>
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["objects"][0].strip(), "NGC7469")
+        self.assertEqual(len(row["objects"]), 1)
+        self.assertEqual(row["imageTitle"],
+                'NGC7469-007_R.fit.fit')
+      </code>
     </regTest>
 
   </regSuite>
