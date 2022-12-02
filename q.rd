@@ -107,7 +107,19 @@
         <simplemaps>
           exptime: EXPOSURE,
           telescope: TELESCOP,
+					observat: OBSERVAT,
         </simplemaps>
+
+				<apply procDef="//procs#dictMap">
+					<bind key="mapping">{
+						"B_Johnson": "",
+						"V_Johnson": "",
+						"R_Johnson": "",
+						"CLEAR": "",
+					 }</bind>
+					<bind key="key">"FILTER"</bind>
+				</apply>
+
         <!-- put vars here to pre-process FITS keys that you need to
           re-format in non-trivial ways. -->
         <apply procDef="//siap#setMeta">
@@ -296,12 +308,7 @@
     <meta name="title">Web interface to FAI AGN observations</meta>
     <outputTable autoCols="accref,accsize,centerAlpha,centerDelta,
             dateObs,imageTitle,object">
-      <outputField original="pub_did" tablehead="Datalink">
-        <formatter>
-          return T.a(href="/\rdId/dl/dlmeta?ID="+urllib.parse.quote(data
-            ))["Datalink"]
-        </formatter>
-      </outputField>
+      <outputField original="pub_did" tablehead="Datalink"/>
     </outputTable>
   </service>
     <!-- other sia.types: Cutout, Mosaic, Atlas -->
@@ -325,16 +332,16 @@
   <regSuite title="fai_agn regression">
 
     <regTest title="fai_agn SIAP serves some data">
-      <url POS="345.8,8.9" SIZE="0.1,0.1"
+      <url POS="345.8,8.9" SIZE="0.1,0.1" dateObs="57635.8214/"
         >i/siap.xml</url>
       <code>
         rows = self.getVOTableRows()
         self.assertEqual(len(rows), 1)
         row = rows[0]
-        self.assertEqual(row["objects"][0].strip(), "NGC7469")
-        self.assertEqual(len(row["objects"]), 1)
+        self.assertEqual(row["object"], "NGC7469")
+        self.assertEqual(len(row["object"]), 1)
         self.assertEqual(row["imageTitle"],
-                'NGC7469-007_R.fit.fit')
+                'NGC7469-007_R.fit')
       </code>
     </regTest>
 
