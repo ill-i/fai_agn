@@ -147,7 +147,7 @@
 
   <service id="dl" allowed="dlmeta,static">
     <meta name="title">FAI AGN raw image datalink</meta>
-    <property key="staticData">calib_frames</property>
+    <property key="staticData">../calib_frames</property>
 
     <datalinkCore>
       <descriptorGenerator procDef="//soda#fromStandardPubDID"/>
@@ -165,6 +165,7 @@
             "Zeiss-1000 (East)": "zeiss_1000_east",
             "Zeiss-1000 (West)": "zeiss_1000_west",
             "AZT-8": "azt_8",
+            "": "UNKNOWN",
           }</par>
         </setup>
         <code>
@@ -173,19 +174,23 @@
               base.getConfig("inputsDir"),
               descriptor.accessPath), "rb") as f:
             descriptor.fits_header = fitstools.readPrimaryHeaderQuick(f)
-          telescope = telescopeMapping[descriptor.fits_header["TELESCOP"]
-					descriptor.calib_path = os.path.join(
-            self.parent.rd.resdir, "/var/gavo/inputs/calib_frames/{telescope}")
+          telescope = telescopeMapping[descriptor.fits_header["TELESCOP"]]
+          descriptor.calib_path = os.path.join(
+            base.getConfig("inputsDir"), f"calib_frames/data/{telescope}")
+          descriptor.static_service = base.resolveCrossId(
+                "calib_frames/q#deliver")
 
           # make the #flat link
           band = bandMapping[descriptor.fits_header["FILTER"]]
           binning = descriptor.fits_header["XBINNING"]
-					flatPat = f"Flat*_{band}{XBINNING}.fit"
+          flatPat = os.path.join(descriptor.calib_path, 
+            f"Flat*_{band}{binning}.fit")
             
-          for match in glob.glob(os.path.join(descriptor.calib_path, flatPat)):
+          for match in glob.glob(flatPat):
             yield descriptor.makeLinkFromFile(
               match,
-              description="Flatfile for this band")
+              description="Flatfile for this band",
+              service=descriptor.static_service)
         </code>
       </metaMaker>
 
@@ -228,7 +233,8 @@
             
           yield descriptor.makeLinkFromFile(
             os.path.join(descriptor.calib_path, f"BIAS{fragment}_60s.fit"),
-            description="Bias frame for this observation date")
+            description="Bias frame for this observation date",
+            service=descriptor.static_service)
         </code>
       </metaMaker>
 
@@ -269,11 +275,12 @@
           dateObs = parseTimestamp(descriptor.fits_header["DATE-OBS"])
           fragment = getFragmentForDate(dateObs)
 
-					exposure = int(descriptor.fits_header["EXPOSURE"])
+          exposure = int(descriptor.fits_header["EXPOSURE"])
             
           yield descriptor.makeLinkFromFile(
             os.path.join(descriptor.calib_path, f"Dark{fragment}_{exposure}s.fit"),
-            description="Dark frame for this observation date")
+            description="Dark frame for this observation date",
+            service=descriptor.static_service)
         </code>
       </metaMaker>
     </datalinkCore>
@@ -338,5 +345,25 @@
       </code>
     </regTest>
 
+    <regTest title="fai_agn datalink returns some records">
+      <url
+        ID="ivo://org.gavo.dc/~?fai_agn/data/MRK335-001_B.fit"
+        >dl/dlmeta</url>
+      <code>
+        rows = self.getVOTableRows()
+        bySemantics = dict((r["semantics"], r) for r in rows)
+
+        self.assertTrue(bySemantics["#this"]["access_url"].endswith(
+          "getproduct/fai_agn/data/MRK335-001_B.fit"),
+          "#this URI is wrong")
+        self.assertEqual(bySemantics["#this"]["content_length"], 4682880)
+
+        self.assertTrue(bySemantics["#flat"]["access_url"].endswith(
+          "calib_frames/q/deliver/static/UNKNOWN/FlatBOGUS_B2.fit"),
+          "#flat URI is wrong")
+        self.assertEqual(bySemantics["#flat"]["content_type"], 
+          "image/fits")
+      </code>
+    </regTest>
   </regSuite>
 </resource>
