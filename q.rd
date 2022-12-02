@@ -17,7 +17,6 @@
   <meta name="facility">Fesenkov Astrophysical Institute</meta>
   <meta name="facility">Tian Shan Astronomical Observatory</meta>
 
-  <meta name="source">%ideally, a bibcode%</meta>
   <meta name="contentLevel">Research</meta>
   <meta name="type">Catalog</meta>  <!-- or Archive, Survey, Simulation -->
 
@@ -156,9 +155,16 @@
       <metaMaker semantics="#flat">
         <setup imports="gavo.utils.fitstools, glob">
           <par name="bandMapping">{
-            "B_Johnson": "u",
-            "R_Johnson": "r",
-            "V_Johnson": "g",
+            "B_Johnson": "B",
+            "R_Johnson": "R",
+            "V_Johnson": "V",
+            "CLEAR": "CL",
+          }</par>
+          <par name="telescopeMapping">{
+            "AZT-20": "azt_20",
+            "Zeiss-1000 (East)": "zeiss_1000_east",
+            "Zeiss-1000 (West)": "zeiss_1000_west",
+            "AZT-8": "azt_8",
           }</par>
         </setup>
         <code>
@@ -167,12 +173,14 @@
               base.getConfig("inputsDir"),
               descriptor.accessPath), "rb") as f:
             descriptor.fits_header = fitstools.readPrimaryHeaderQuick(f)
-          descriptor.calib_path = os.path.join(
-            self.parent.rd.resdir, "calib_frames")
+          telescope = telescopeMapping[descriptor.fits_header["TELESCOP"]
+					descriptor.calib_path = os.path.join(
+            self.parent.rd.resdir, "/var/gavo/inputs/calib_frames/{telescope}")
 
           # make the #flat link
           band = bandMapping[descriptor.fits_header["FILTER"]]
-          flatPat = f"FLAT*_{band}.fit"
+          binning = descriptor.fits_header["XBINNING"]
+					flatPat = f"Flat*_{band}{XBINNING}.fit"
             
           for match in glob.glob(os.path.join(descriptor.calib_path, flatPat)):
             yield descriptor.makeLinkFromFile(
@@ -224,6 +232,50 @@
         </code>
       </metaMaker>
 
+      <metaMaker semantics="#dark">
+        <setup imports="datetime">
+          <!-- The following list gives file name for intervals between
+            the date in the first tuple element and the date in the 
+            following record. The most recent time is valid for
+            everyting later. -->
+          <par name="dateRanges">[
+            (datetime.datetime(2012, 12, 14), "_150920-0001"),
+            (datetime.datetime(2013, 1, 23), "_150920-0002"),
+            (datetime.datetime(2014, 10, 3), "_150920-0003"),
+          ]</par>
+          <code><![CDATA[
+            def getFragmentForDate(date):
+              """returns the appropriate ordinal for date (a datetime.date
+              instance.
+
+              This will raise a ValueError if a date before dateRanges is
+              entered.
+              """
+              curStart = None
+              for nextStart, nextFragment in dateRanges:
+                if curStart:
+                  if curStart<=date<nextStart:
+                    return curFragment
+                curStart, curFragment = nextStart, nextFragment
+
+              if date>curStart:
+                return curFragment
+
+              raise ValueError(
+                f"Observation date without calibration data: {date}")
+          ]]></code>
+        </setup>
+        <code>
+          dateObs = parseTimestamp(descriptor.fits_header["DATE-OBS"])
+          fragment = getFragmentForDate(dateObs)
+
+					exposure = int(descriptor.fits_header["EXPOSURE"])
+            
+          yield descriptor.makeLinkFromFile(
+            os.path.join(descriptor.calib_path, f"Dark{fragment}_{exposure}s.fit"),
+            description="Dark frame for this observation date")
+        </code>
+      </metaMaker>
     </datalinkCore>
 
   </service>
