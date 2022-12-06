@@ -129,6 +129,11 @@
 						"V_Johnson": "Johnson V",
 						"R_Johnson": "Johnson R",
 						"CLEAR": "Cear",
+						"Sloan_u": "SDSS u",
+						"Sloan_g": "SDSS g",
+						"Sloan_r": "SDSS r",
+						"Sloan_i": "SDSS i",
+						"Sloan_z": "SDSS z",
 					 }</bind>
 					<bind key="key">"FILTER"</bind>
 				</apply>
@@ -146,7 +151,7 @@
           <bind key="bandpassId">@FILTER</bind>
 
           <!-- pixflags is one of: C atlas image or cutout, F resampled, 
-            X computed without interpolation, Z pixel flux calibrated, 
+           without interpolation, Z pixel flux calibrated, 
             V unspecified visualisation for presentation only
           <bind key="pixflags"></bind> -->
           
@@ -184,9 +189,9 @@
     					"""
     					files = []
     					directory = pathlib.Path(directory)
-							CALFILE_NAMES = {"flat":f"Flat_*_{filt}_{binning}.fit",
-								"dark":f"Dark_*_{exptime}_{binning}.fit",
-								"bias":f"Bias_*_{binning}.fit"}
+							CALFILE_NAMES = {"Flat":f"Flat_*_{filt}_{binning}.fit",
+								"Dark":f"Dark_*_{exptime}_{binning}.fit",
+								"Bias":f"Bias_*_{binning}.fit"}
 
   						for name in directory.glob(CALFILE_NAMES.get(ctype)):
 							#get absolut path with names of files 
@@ -194,7 +199,7 @@
       						date_lit = name.split("_")[1]
         					if len(date_lit)<8: 
         						date_lit = "20"+date_lit 
-        					files.append(abs(astropy.time.Time(f'{date_lit[:4]}-{date_lit[4:6]}-{date_lit[6:]}').jd-time_jd), name)
+        					files.append([abs(astropy.time.Time(f'{date_lit[:4]}-{date_lit[4:6]}-{date_lit[6:]}').jd-float(time_jd)), name])
       					except IOError: # don't worry about disappearing files
       						pass
     						files.sort()
@@ -239,13 +244,13 @@
                 "calib_frames/q#deliver")
 
           # make the #flat link
-					flatPat = get_closest_files(descriptor.calib_path, "flat", 
+					flatPat = get_closest_files(descriptor.calib_path, "Flat", 
 						descriptor.fits_header["JD"], 
 						exptime=None,
 						bandMapping[descriptor.fits_header["FILTER"]],
 						descriptor.fits_header["XBINNING"]) 
 
-          for match in glob.glob(flatPat):
+          for match in flatPat:
             yield descriptor.makeLinkFromFile(
               match,
               description="Flatfile for these band and binning",
@@ -256,13 +261,13 @@
       <metaMaker semantics="#bias">
         <code>  
 					# make the #bias link
-					biasPat = get_closest_files(descriptor.calib_path, "bias", 
+					biasPat = get_closest_files(descriptor.calib_path, "Bias", 
 						descriptor.fits_header["JD"],
 					 	exptime=None,	
 						bandMapping[descriptor.fits_header["FILTER"]],
 						descriptor.fits_header["XBINNING"]) 
 
-          for match in glob.glob(biasPat):
+          for match in biasPat:
             yield descriptor.makeLinkFromFile(
               match,
 							description="Bias frame for these observation date and binning",
@@ -279,7 +284,7 @@
 						filt=None,
 						descriptor.fits_header["XBINNING"]) 
 
-          for match in glob.glob(biasPat):
+          for match in darkPat:
             yield descriptor.makeLinkFromFile(
               match,
             	description="Dark frame for these observation date, exposure and binning",
