@@ -31,18 +31,13 @@
       <meta name="idColumn">pub_did</meta>
     </meta>
 
-    <!-- in the following, just delete any attribute you don't want to
-    set.
-    
-    Get the target class, if any, from 
-    http://simbad.u-strasbg.fr/guide/chF.htx -->
-    <!-- <mixin
+    <mixin
       calibLevel="2"
-      collectionName="'%a few letters identifying this data%'"
-      targetName="%column name of an object designation%"
-      expTime="%column name of an exposure time%"
-      targetClass="'%simbad target class%'"
-    >//obscore#publishSIAP</mixin> -->
+      collectionName="'FAI AGN Phot'"
+      targetName="OBJECT"
+      expTime="EXPTIME"
+			target_class="AGN"
+    >//obscore#publishSIAP</mixin>
 
     <column name="object" type="text"
       ucd="meta.id;src"
@@ -65,14 +60,29 @@
       description="Exposure time."
       verbLevel="5"/>
     <column name="telescope" type="text"
-       ucd="instr.tel"
-       tablehead="Telescope"
-       description="Telescope."
-       verbLevel="3"/>
-    <column name="observat" type="text"
       ucd="instr.tel"
+      tablehead="Telescope"
+      description="Telescope."
+    	verbLevel="3"/>
+    <column name="observat" type="text"
+      ucd="meta.id;instr.obsty"
       tablehead="Observat"
       description="Observatory where data was obtained."
+      verbLevel="3"/>
+    <column name="readoutm" type="text"
+			ucd="meta.note"
+      tablehead="RedaoutMode"
+      description="Readout mode of image"
+      verbLevel="3"/>
+    <column name="bin" type="integer"
+      ucd="meta.number;instr.pixel"
+			tablehead="Binning"
+      description="Binning factor"
+      verbLevel="3"/>
+    <column name="airmass" type="real"
+    	ucd="obs.airMass" 
+      tablehead="Airmass"
+      description="Relative optical path length through atmosphere"
       verbLevel="3"/>
     <column name="pub_did" type="text"
       ucd="meta.ref.ivoid"
@@ -108,14 +118,17 @@
           exptime: EXPOSURE,
           telescope: TELESCOP,
 					observat: OBSERVAT,
+					readoutm:READOUTM,
+					bin:XBINNING,
+					airmass:AIRMASS
         </simplemaps>
 
 				<apply procDef="//procs#dictMap">
-					<bind key="mapping">{
-						"B_Johnson": "",
-						"V_Johnson": "",
-						"R_Johnson": "",
-						"CLEAR": "",
+				<bind key="mapping">{
+						"B_Johnson": "Johnson B",
+						"V_Johnson": "Johnson V",
+						"R_Johnson": "Johnson R",
+						"CLEAR": "Cear",
 					 }</bind>
 					<bind key="key">"FILTER"</bind>
 				</apply>
@@ -148,7 +161,7 @@
         <map key="target_dec">dmsToDeg(@OBJCTDEC, sepChar=" ")</map>
         <map key="object">@OBJECT</map>
         <map key="observat">vars.get("OBSERVAT")</map>
-        <map key="pub_did">\standardPubDID</map>
+				<map key="pub_did">\standardPubDID</map>
 
         <!-- any custom columns need to be mapped here; do *not* use
           idmaps="*" with SIAP -->
@@ -157,12 +170,45 @@
   </data>
 
 
+
   <service id="dl" allowed="dlmeta,static">
     <meta name="title">FAI AGN raw image datalink</meta>
     <property key="staticData">../calib_frames</property>
 
     <datalinkCore>
       <descriptorGenerator procDef="//soda#fromStandardPubDID"/>
+					<code><![CDATA[
+						def get_closest_files(directory, ctype, time_jd, exptime, filt, binning):
+    					"""
+							returns the path of the files in directory with the closest timestamp.
+    					"""
+    					files = []
+    					directory = pathlib.Path(directory)
+							CALFILE_NAMES = {"flat":f"Flat_*_{filt}_{binning}.fit",
+								"dark":f"Dark_*_{exptime}_{binning}.fit",
+								"bias":f"Bias_*_{binning}.fit"}
+
+  						for name in directory.glob(CALFILE_NAMES.get(ctype)):
+							#get absolut path with names of files 
+    						try:
+      						date_lit = name.split("_")[1]
+        					if len(date_lit)<8: 
+        						date_lit = "20"+date_lit 
+        					files.append(abs(astropy.time.Time(f'{date_lit[:4]}-{date_lit[4:6]}-{date_lit[6:]}').jd-time_jd), name)
+      					except IOError: # don't worry about disappearing files
+      						pass
+    						files.sort()
+    						minmimal_offset = files[0][0]
+    						calib_files = []
+    						for f in files:
+        					if abs(f[0]-minimal_offset)<0.5:
+        					calib_files.append(f[1]))
+        				else:
+          				return calib_files
+    					raise IOError(f"No calibration frame for 
+								{astropy.time.Time(time_jd).iso[:10]}, {filt} and {binning}")
+          ]]></code>
+        </setup>
 
       <metaMaker semantics="#flat">
         <setup imports="gavo.utils.fitstools, glob">
@@ -193,106 +239,51 @@
                 "calib_frames/q#deliver")
 
           # make the #flat link
-          band = bandMapping[descriptor.fits_header["FILTER"]]
-          binning = descriptor.fits_header["XBINNING"]
-          flatPat = os.path.join(descriptor.calib_path, 
-            f"Flat*_{band}{binning}.fit")
-            
+					flatPat = get_closest_files(descriptor.calib_path, "flat", 
+						descriptor.fits_header["JD"], 
+						exptime=None,
+						bandMapping[descriptor.fits_header["FILTER"]],
+						descriptor.fits_header["XBINNING"]) 
+
           for match in glob.glob(flatPat):
             yield descriptor.makeLinkFromFile(
               match,
-              description="Flatfile for this band",
+              description="Flatfile for these band and binning",
               service=descriptor.static_service)
         </code>
       </metaMaker>
 
       <metaMaker semantics="#bias">
-        <setup imports="datetime">
-          <!-- The following list gives file name for intervals between
-            the date in the first tuple element and the date in the 
-            following record. The most recent time is valid for
-            everyting later. -->
-          <par name="dateRanges">[
-            (datetime.datetime(2012, 12, 14), "_150920-0001"),
-            (datetime.datetime(2013, 1, 23), "_150920-0002"),
-            (datetime.datetime(2014, 10, 3), "_150920-0003"),
-          ]</par>
-          <code><![CDATA[
-            def getFragmentForDate(date):
-              """returns the appropriate ordinal for date (a datetime.date
-              instance.
+        <code>  
+					# make the #bias link
+					biasPat = get_closest_files(descriptor.calib_path, "bias", 
+						descriptor.fits_header["JD"],
+					 	exptime=None,	
+						bandMapping[descriptor.fits_header["FILTER"]],
+						descriptor.fits_header["XBINNING"]) 
 
-              This will raise a ValueError if a date before dateRanges is
-              entered.
-              """
-              curStart = None
-              for nextStart, nextFragment in dateRanges:
-                if curStart:
-                  if curStart<=date<nextStart:
-                    return curFragment
-                curStart, curFragment = nextStart, nextFragment
-
-              if date>curStart:
-                return curFragment
-
-              raise ValueError(
-                f"Observation date without calibration data: {date}")
-          ]]></code>
-        </setup>
-        <code>
-          dateObs = parseTimestamp(descriptor.fits_header["DATE-OBS"])
-          fragment = getFragmentForDate(dateObs)
-            
-          yield descriptor.makeLinkFromFile(
-            os.path.join(descriptor.calib_path, f"BIAS{fragment}_60s.fit"),
-            description="Bias frame for this observation date",
-            service=descriptor.static_service)
+          for match in glob.glob(biasPat):
+            yield descriptor.makeLinkFromFile(
+              match,
+							description="Bias frame for these observation date and binning",
+              service=descriptor.static_service)
         </code>
       </metaMaker>
 
       <metaMaker semantics="#dark">
-        <setup imports="datetime">
-          <!-- The following list gives file name for intervals between
-            the date in the first tuple element and the date in the 
-            following record. The most recent time is valid for
-            everyting later. -->
-          <par name="dateRanges">[
-            (datetime.datetime(2012, 12, 14), "_150920-0001"),
-            (datetime.datetime(2013, 1, 23), "_150920-0002"),
-            (datetime.datetime(2014, 10, 3), "_150920-0003"),
-          ]</par>
-          <code><![CDATA[
-            def getFragmentForDate(date):
-              """returns the appropriate ordinal for date (a datetime.date
-              instance.
-
-              This will raise a ValueError if a date before dateRanges is
-              entered.
-              """
-              curStart = None
-              for nextStart, nextFragment in dateRanges:
-                if curStart:
-                  if curStart<=date<nextStart:
-                    return curFragment
-                curStart, curFragment = nextStart, nextFragment
-
-              if date>curStart:
-                return curFragment
-
-              raise ValueError(
-                f"Observation date without calibration data: {date}")
-          ]]></code>
-        </setup>
         <code>
-          dateObs = parseTimestamp(descriptor.fits_header["DATE-OBS"])
-          fragment = getFragmentForDate(dateObs)
+					# make the #dark link
+					darkPat = get_closest_files(descriptor.calib_path, "dark", 
+						descriptor.fits_header["JD"],
+					 	descriptor.fits_header["EXPTIME"],	
+						filt=None,
+						descriptor.fits_header["XBINNING"]) 
 
-          exposure = int(descriptor.fits_header["EXPOSURE"])
-            
-          yield descriptor.makeLinkFromFile(
-            os.path.join(descriptor.calib_path, f"Dark{fragment}_{exposure}s.fit"),
-            description="Dark frame for this observation date",
-            service=descriptor.static_service)
+          for match in glob.glob(biasPat):
+            yield descriptor.makeLinkFromFile(
+              match,
+            	description="Dark frame for these observation date, exposure and binning",
+            	service=descriptor.static_service)
         </code>
       </metaMaker>
     </datalinkCore>
