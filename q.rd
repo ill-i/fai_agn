@@ -235,8 +235,10 @@
                     calib_files.append(f[1])
                 else:
                   return calib_files
+
+              formatted_time = time.Time(time_jd, format="jd").iso[:10]
               raise IOError("No calibration frame for"
-                f" {time.Time(time_jd).iso[:10]}, {filt} and {binning}")
+                f" {formatted_time}, {filt} and {binning}")
           ]]></code>
         </setup>
 
