@@ -36,7 +36,7 @@
       collectionName="'FAI AGN Phot'"
       targetName="OBJECT"
       expTime="EXPTIME"
-			target_class="AGN"
+      target_class="'AGN'"
     >//obscore#publishSIAP</mixin>
 
     <column name="object" type="text"
@@ -63,24 +63,24 @@
       ucd="instr.tel"
       tablehead="Telescope"
       description="Telescope."
-    	verbLevel="3"/>
+      verbLevel="3"/>
     <column name="observat" type="text"
       ucd="meta.id;instr.obsty"
       tablehead="Observat"
       description="Observatory where data was obtained."
       verbLevel="3"/>
     <column name="readoutm" type="text"
-			ucd="meta.note"
+      ucd="meta.note"
       tablehead="RedaoutMode"
       description="Readout mode of image"
       verbLevel="3"/>
-    <column name="bin" type="integer"
+    <column name="bin" type="integer" required="True"
       ucd="meta.number;instr.pixel"
-			tablehead="Binning"
+      tablehead="Binning"
       description="Binning factor"
       verbLevel="3"/>
     <column name="airmass" type="real"
-    	ucd="obs.airMass" 
+      ucd="obs.airMass" 
       tablehead="Airmass"
       description="Relative optical path length through atmosphere"
       verbLevel="3"/>
@@ -117,26 +117,25 @@
         <simplemaps>
           exptime: EXPOSURE,
           telescope: TELESCOP,
-					observat: OBSERVAT,
-					readoutm:READOUTM,
-					bin:XBINNING,
-					airmass:AIRMASS
+          readoutm:READOUTM,
+          bin:XBINNING,
+          airmass:AIRMASS
         </simplemaps>
 
-				<apply procDef="//procs#dictMap">
-				<bind key="mapping">{
-						"B_Johnson": "Johnson B",
-						"V_Johnson": "Johnson V",
-						"R_Johnson": "Johnson R",
-						"CLEAR": "Cear",
-						"Sloan_u": "SDSS u",
-						"Sloan_g": "SDSS g",
-						"Sloan_r": "SDSS r",
-						"Sloan_i": "SDSS i",
-						"Sloan_z": "SDSS z",
-					 }</bind>
-					<bind key="key">"FILTER"</bind>
-				</apply>
+        <apply procDef="//procs#dictMap">
+        <bind key="mapping">{
+            "B_Johnson": "Johnson B",
+            "V_Johnson": "Johnson V",
+            "R_Johnson": "Johnson R",
+            "CLEAR": "Cear",
+            "Sloan_u": "SDSS u",
+            "Sloan_g": "SDSS g",
+            "Sloan_r": "SDSS r",
+            "Sloan_i": "SDSS i",
+            "Sloan_z": "SDSS z",
+           }</bind>
+          <bind key="key">"FILTER"</bind>
+        </apply>
 
         <!-- put vars here to pre-process FITS keys that you need to
           re-format in non-trivial ways. -->
@@ -166,7 +165,7 @@
         <map key="target_dec">dmsToDeg(@OBJCTDEC, sepChar=" ")</map>
         <map key="object">@OBJECT</map>
         <map key="observat">vars.get("OBSERVAT")</map>
-				<map key="pub_did">\standardPubDID</map>
+        <map key="pub_did">\standardPubDID</map>
 
         <!-- any custom columns need to be mapped here; do *not* use
           idmaps="*" with SIAP -->
@@ -182,55 +181,65 @@
 
     <datalinkCore>
       <descriptorGenerator procDef="//soda#fromStandardPubDID"/>
-					<code><![CDATA[
-						def get_closest_files(directory, ctype, time_jd, exptime, filt, binning):
-    					"""
-							returns the path of the files in directory with the closest timestamp.
-    					"""
-    					files = []
-    					directory = pathlib.Path(directory)
-							CALFILE_NAMES = {"Flat":f"Flat_*_{filt}_{binning}.fit",
-								"Dark":f"Dark_*_{exptime}_{binning}.fit",
-								"Bias":f"Bias_*_{binning}.fit"}
+      <metaMaker semantics="#calibration">
+        <setup imports="pathlib, astropy.time, gavo.utils.fitstools">
+          <par name="bandMapping">{
+              "B_Johnson": "B",
+              "R_Johnson": "R",
+              "V_Johnson": "V",
+              "CLEAR": "CL",
+              "Sloan_u": "SDSS u",
+               "Sloan_g": "SDSS g",
+              "Sloan_r": "SDSS r",
+              "Sloan_i": "SDSS i",
+              "Sloan_z": "SDSS z"
+            }</par>
+          <par name="telescopeMapping">{
+              "AZT-20": "azt_20",
+              "Zeiss-1000 (East)": "zeiss_1000_east",
+              "Zeiss-1000 (West)": "zeiss_1000_west",
+              "AZT-8": "azt_8",
+              "": "UNKNOWN",
+            }</par>
 
-  						for name in directory.glob(CALFILE_NAMES.get(ctype)):
-							#get absolut path with names of files 
-    						try:
-      						date_lit = name.split("_")[1]
-        					if len(date_lit)<8: 
-        						date_lit = "20"+date_lit 
-        					files.append([abs(astropy.time.Time(f'{date_lit[:4]}-{date_lit[4:6]}-{date_lit[6:]}').jd-float(time_jd)), name])
-      					except IOError: # don't worry about disappearing files
-      						pass
-    						files.sort()
-    						minmimal_offset = files[0][0]
-    						calib_files = []
-    						for f in files:
-        					if abs(f[0]-minimal_offset)<0.5:
-        					calib_files.append(f[1]))
-        				else:
-          				return calib_files
-    					raise IOError(f"No calibration frame for 
-								{astropy.time.Time(time_jd).iso[:10]}, {filt} and {binning}")
+          <code><![CDATA[
+            def get_closest_files(directory, ctype, time_jd, exptime, filt, binning):
+              """
+              returns the path of the files in directory with the closest timestamp.
+              """
+              files = []
+              directory = pathlib.Path(directory)
+              CALFILE_NAMES = {"Flat":f"Flat_*_{filt}_{binning}.fit",
+                "Dark":f"Dark_*_{exptime}_{binning}.fit",
+                "Bias":f"Bias_*_{binning}.fit"}
+
+              for name in directory.glob(CALFILE_NAMES.get(ctype)):
+                #get absolute path with names of files 
+                try:
+                  date_lit = name.split("_")[1]
+                  if len(date_lit)<8: 
+                    date_lit = "20"+date_lit 
+                  iso_date_lit = f'{date_lit[:4]}-{date_lit[4:6]}-{date_lit[6:]}'
+                  files.append(
+                    (abs(time.Time(iso_date_lit, format="isot").jd
+                        -float(time_jd)),
+                    name))
+                except IOError: # don't worry about disappearing files
+                  pass
+
+                files.sort()
+                minmimal_offset = files[0][0]
+                calib_files = []
+                for f in files:
+                  if abs(f[0]-minimal_offset)<0.5:
+                    calib_files.append(f[1])
+                else:
+                  return calib_files
+              raise IOError("No calibration frame for"
+                f" {time.Time(time_jd).iso[:10]}, {filt} and {binning}")
           ]]></code>
         </setup>
 
-      <metaMaker semantics="#flat">
-        <setup imports="gavo.utils.fitstools, glob">
-          <par name="bandMapping">{
-            "B_Johnson": "B",
-            "R_Johnson": "R",
-            "V_Johnson": "V",
-            "CLEAR": "CL",
-          }</par>
-          <par name="telescopeMapping">{
-            "AZT-20": "azt_20",
-            "Zeiss-1000 (East)": "zeiss_1000_east",
-            "Zeiss-1000 (West)": "zeiss_1000_west",
-            "AZT-8": "azt_8",
-            "": "UNKNOWN",
-          }</par>
-        </setup>
         <code>
           # common setup for all meta makes
           with open(os.path.join(
@@ -239,58 +248,45 @@
             descriptor.fits_header = fitstools.readPrimaryHeaderQuick(f)
           telescope = telescopeMapping[descriptor.fits_header["TELESCOP"]]
           descriptor.calib_path = os.path.join(
-            base.getConfig("inputsDir"), f"calib_frames/data/{telescope}")
+            base.getConfig("inputsDir"), f"fai_calib_frames/data/{telescope}")
           descriptor.static_service = base.resolveCrossId(
-                "calib_frames/q#deliver")
+                "fai_calib_frames/q#deliver")
 
           # make the #flat link
-					flatPat = get_closest_files(descriptor.calib_path, "Flat", 
-						descriptor.fits_header["JD"], 
-						exptime=None,
-						bandMapping[descriptor.fits_header["FILTER"]],
-						descriptor.fits_header["XBINNING"]) 
-
-          for match in flatPat:
+          for flat_path in get_closest_files(descriptor.calib_path, "Flat", 
+              descriptor.fits_header["JD"], 
+              None,
+              bandMapping[descriptor.fits_header["FILTER"]],
+              descriptor.fits_header["XBINNING"]):
             yield descriptor.makeLinkFromFile(
-              match,
-              description="Flatfile for these band and binning",
-              service=descriptor.static_service)
+              flat_path, semantics="#flat",
+              description="CCD Flat to be used for this frame based on date, binning and filter."
+                "  Use some linear combination of these if you get multiple flats.")
+
+          # TODO: Same for #bias
+
+          for bias_path in get_closest_files(descriptor.calib_path, "Bias", 
+              descriptor.fits_header["JD"], 
+              None,
+              None,
+              descriptor.fits_header["XBINNING"]):
+            yield descriptor.makeLinkFromFile(
+              bias_path, semantics="#bias",
+              description="CCD Bias to be used for this frame based on date and binning."
+                "  Use some linear combination of these if you get multiple bias.")
+          # TODO: Same for #dark
+          for dark_path in get_closest_files(descriptor.calib_path, "Dark", 
+              descriptor.fits_header["JD"], 
+              descriptor.fits_header["EXPOSURE"], 
+              None,
+              descriptor.fits_header["XBINNING"]):
+            yield descriptor.makeLinkFromFile(
+              dark_path, semantics="#dark",
+              description="CCD Dark to be used for this frame based on date, exposure and binning."
+                "  Use some linear combination of these if you get multiple flats.")
         </code>
       </metaMaker>
-
-      <metaMaker semantics="#bias">
-        <code>  
-					# make the #bias link
-					biasPat = get_closest_files(descriptor.calib_path, "Bias", 
-						descriptor.fits_header["JD"],
-					 	exptime=None,	
-						bandMapping[descriptor.fits_header["FILTER"]],
-						descriptor.fits_header["XBINNING"]) 
-
-          for match in biasPat:
-            yield descriptor.makeLinkFromFile(
-              match,
-							description="Bias frame for these observation date and binning",
-              service=descriptor.static_service)
-        </code>
-      </metaMaker>
-
-      <metaMaker semantics="#dark">
-        <code>
-					# make the #dark link
-					darkPat = get_closest_files(descriptor.calib_path, "dark", 
-						descriptor.fits_header["JD"],
-					 	descriptor.fits_header["EXPTIME"],	
-						filt=None,
-						descriptor.fits_header["XBINNING"]) 
-
-          for match in darkPat:
-            yield descriptor.makeLinkFromFile(
-              match,
-            	description="Dark frame for these observation date, exposure and binning",
-            	service=descriptor.static_service)
-        </code>
-      </metaMaker>
+      
     </datalinkCore>
 
   </service>
@@ -303,20 +299,22 @@
     <condDesc buildFrom="object"/>
   </dbCore>
 
-  <!-- if you want to build an attractive form-based service from
-    SIAP, you probably want to have a custom form service; for
-    just basic functionality, this should do, however. -->
   <service id="web" allowed="form" core="imagecore">
     <meta name="shortName">fai_agn web</meta>
     <meta name="title">Web interface to FAI AGN observations</meta>
     <outputTable autoCols="accref,accsize,centerAlpha,centerDelta,
             dateObs,imageTitle,object">
-      <outputField original="pub_did" tablehead="Datalink"/>
+      <outputField original="pub_did" tablehead="Datalink">
+        <formatter>
+          return T.a(href="/fai_agn/q/dl/dlmeta?ID="
+            +urllib.parse.quote(data))["datalink"]
+        </formatter>
+      </outputField>
     </outputTable>
   </service>
     <!-- other sia.types: Cutout, Mosaic, Atlas -->
 
-  <service id="i" allowed="form,siap.xml" core="imagecore">
+  <service id="i" allowed="siap.xml" core="imagecore">
     <meta name="shortName">fai_agn siap</meta>
     <meta name="sia.type">Pointed</meta>
     
@@ -328,7 +326,7 @@
     <!-- this is the VO publication -->
     <publish render="siap.xml" sets="ivo_managed"/>
     <!-- this puts the service on the root page -->
-    <publish render="form" sets="local,ivo_managed"/>
+    <publish render="form" sets="local,ivo_managed" service="web"/>
     <!-- all publish elements only become active after you run -->
   </service>
 
@@ -339,33 +337,27 @@
         >i/siap.xml</url>
       <code>
         rows = self.getVOTableRows()
-        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(rows), 1, "There is just one match")
         row = rows[0]
         self.assertEqual(row["object"], "NGC7469")
-        self.assertEqual(len(row["object"]), 1)
         self.assertEqual(row["imageTitle"],
-                'NGC7469-007_R.fit')
+                'NGC7469 2016-09-04T19:42:52.51 Johnson R')
       </code>
     </regTest>
 
-    <regTest title="fai_agn datalink returns some records">
+    <regTest title="fai_agn datalink looks plausible">
       <url
-        ID="ivo://org.gavo.dc/~?fai_agn/data/MRK335-001_B.fit"
+        ID="ivo://fai.kz/~?fai_agn/data/NGC7469-007_R.fit"
         >dl/dlmeta</url>
       <code>
         rows = self.getVOTableRows()
         bySemantics = dict((r["semantics"], r) for r in rows)
 
         self.assertTrue(bySemantics["#this"]["access_url"].endswith(
-          "getproduct/fai_agn/data/MRK335-001_B.fit"),
+          "getproduct/fai_agn/data/NGC7469-007_R.fit"),
           "#this URI is wrong")
         self.assertEqual(bySemantics["#this"]["content_length"], 4682880)
 
-        self.assertTrue(bySemantics["#flat"]["access_url"].endswith(
-          "calib_frames/q/deliver/static/UNKNOWN/FlatBOGUS_B2.fit"),
-          "#flat URI is wrong")
-        self.assertEqual(bySemantics["#flat"]["content_type"], 
-          "image/fits")
       </code>
     </regTest>
   </regSuite>
