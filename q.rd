@@ -99,7 +99,7 @@
     updating="True" and an ignorePattern here; see also howDoI.html,
     incremental updating -->
   <data id="import">
-    <sources pattern="data/*.fit"/>
+    <sources pattern="/var/gavo/inputs/astroplates/agn_photometry/data/*.fit"/>
 
     <!-- the fitsProdGrammar should do it for whenever you have
     halfway usable FITS files.  If they're not halfway usable,
@@ -181,7 +181,7 @@
 
     <datalinkCore>
       <descriptorGenerator procDef="//soda#fromStandardPubDID"/>
-      <metaMaker semantics="#calibration">
+      <metaMaker semantics="#flat" id="fai_calibration">
         <setup imports="pathlib, astropy.time, gavo.utils.fitstools">
           <par name="bandMapping">{
               "B_Johnson": "B",
@@ -203,47 +203,59 @@
             }</par>
 
           <code><![CDATA[
+            def get_names_with_delta_t(name_list, ref_time):
+              """returns a list of file names from name_list with the
+              delta of the date within the name to ref_time (in JD).
+              """
+              res = []
+              for name in name_list:
+                #get absolute path with names of files 
+                try:
+                  date_lit = name.name.split("_")[1]
+                  if len(date_lit)<8: 
+                    date_lit = "20"+date_lit 
+                  iso_date_lit = f'{date_lit[:4]}-{date_lit[4:6]}-{date_lit[6:]}'
+                  file_time = time.Time(iso_date_lit, format="isot").jd
+                  yield (abs(file_time-ref_time), name)
+                except IOError: # don't worry about disappearing files
+                  pass
+
             def get_closest_files(directory, ctype, time_jd, exptime, filt, binning):
               """
               returns the path of the files in directory with the closest timestamp.
               """
               files = []
               directory = pathlib.Path(directory)
-              CALFILE_NAMES = {"Flat":f"Flat_*_{filt}_{binning}.fit",
+              CALFILE_NAMES = {"Flat":f"Flat_*_{filt}{binning}.fit",
                 "Dark":f"Dark_*_{exptime}_{binning}.fit",
                 "Bias":f"Bias_*_{binning}.fit"}
+              name_pattern = CALFILE_NAMES[ctype]
 
-              for name in directory.glob(CALFILE_NAMES.get(ctype)):
-                #get absolute path with names of files 
-                try:
-                  date_lit = name.split("_")[1]
-                  if len(date_lit)<8: 
-                    date_lit = "20"+date_lit 
-                  iso_date_lit = f'{date_lit[:4]}-{date_lit[4:6]}-{date_lit[6:]}'
-                  files.append(
-                    (abs(time.Time(iso_date_lit, format="isot").jd
-                        -float(time_jd)),
-                    name))
-                except IOError: # don't worry about disappearing files
-                  pass
+              files = list(
+                sorted(
+                  get_names_with_delta_t(
+                    directory.glob(name_pattern),
+                    float(time_jd))))
 
-                files.sort()
-                minmimal_offset = files[0][0]
-                calib_files = []
-                for f in files:
-                  if abs(f[0]-minimal_offset)<0.5:
-                    calib_files.append(f[1])
+              if not files:
+                formatted_time = time.Time(time_jd, format="jd").iso[:10]
+                raise IOError(f"No {ctype} frame for"
+                  f" {formatted_time}, {filt} filter and {binning} binning")
+
+              minimal_offset = files[0][0]
+              calib_files = []
+              for offset, file_name in files:
+                if abs(offset-minimal_offset)<0.5:
+                  calib_files.append(file_name)
                 else:
-                  return calib_files
-
-              formatted_time = time.Time(time_jd, format="jd").iso[:10]
-              raise IOError("No calibration frame for"
-                f" {formatted_time}, {filt} and {binning}")
+                  break
+              return calib_files
           ]]></code>
         </setup>
 
         <code>
-          # common setup for all meta makes
+          # common setup for all meta makes; improvement: move this
+          # into a descriptor generator.
           with open(os.path.join(
               base.getConfig("inputsDir"),
               descriptor.accessPath), "rb") as f:
@@ -261,12 +273,15 @@
               bandMapping[descriptor.fits_header["FILTER"]],
               descriptor.fits_header["XBINNING"]):
             yield descriptor.makeLinkFromFile(
-              flat_path, semantics="#flat",
+              flat_path, 
               description="CCD Flat to be used for this frame based on date, binning and filter."
-                "  Use some linear combination of these if you get multiple flats.")
+                "  Use some linear combination of these if you get multiple flats.",
+            service=descriptor.static_service)
+        </code>
+      </metaMaker>
 
-          # TODO: Same for #bias
-
+      <metaMaker semantics="#bias" original="fai_calibration">
+        <code>
           for bias_path in get_closest_files(descriptor.calib_path, "Bias", 
               descriptor.fits_header["JD"], 
               None,
@@ -275,17 +290,23 @@
             yield descriptor.makeLinkFromFile(
               bias_path, semantics="#bias",
               description="CCD Bias to be used for this frame based on date and binning."
-                "  Use some linear combination of these if you get multiple bias.")
-          # TODO: Same for #dark
+                "  Use some linear combination of these if you get multiple bias.",
+            service=descriptor.static_service)
+        </code>
+      </metaMaker>
+
+      <metaMaker semantics="#dark" original="fai_calibration">
+        <code>
           for dark_path in get_closest_files(descriptor.calib_path, "Dark", 
               descriptor.fits_header["JD"], 
-              descriptor.fits_header["EXPOSURE"], 
+              int(descriptor.fits_header["EXPOSURE"]), 
               None,
               descriptor.fits_header["XBINNING"]):
             yield descriptor.makeLinkFromFile(
               dark_path, semantics="#dark",
               description="CCD Dark to be used for this frame based on date, exposure and binning."
-                "  Use some linear combination of these if you get multiple flats.")
+                "  Use some linear combination of these if you get multiple flats.",
+            service=descriptor.static_service)
         </code>
       </metaMaker>
       
@@ -349,17 +370,16 @@
 
     <regTest title="fai_agn datalink looks plausible">
       <url
-        ID="ivo://fai.kz/~?fai_agn/data/NGC7469-007_R.fit"
+        ID="ivo://fai.kz/~?astroplates/agn_photometry/data/MRK1513-005_B.fit"
         >dl/dlmeta</url>
       <code>
         rows = self.getVOTableRows()
         bySemantics = dict((r["semantics"], r) for r in rows)
 
         self.assertTrue(bySemantics["#this"]["access_url"].endswith(
-          "getproduct/fai_agn/data/NGC7469-007_R.fit"),
+          "getproduct/astroplates/agn_photometry/data/MRK1513-005_B.fit"),
           "#this URI is wrong")
         self.assertEqual(bySemantics["#this"]["content_length"], 4682880)
-
       </code>
     </regTest>
   </regSuite>
